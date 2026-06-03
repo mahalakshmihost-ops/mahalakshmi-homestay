@@ -4,7 +4,7 @@ import {
   Sparkles, ShoppingCart, Star, Quote, CheckCircle2, QrCode, 
   Loader2, MapPin, Camera, Settings, Send, Lock, UtensilsCrossed, Plus, Minus
 } from 'lucide-react';
-import { format, differenceInDays, isWithinInterval, parseISO, addDays } from 'date-fns';
+import { format, differenceInDays, parseISO, addDays } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import JSConfetti from 'js-confetti';
