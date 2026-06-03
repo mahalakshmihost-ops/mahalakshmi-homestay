@@ -33,11 +33,7 @@ const CAR_MODELS = [
   { id: 'innova', name: 'Innova', price: 3000 },
 ];
 
-const INITIAL_REVIEWS = [
-  { name: "Rahul Sharma", service: "Stay & Food", text: "Amazing hospitality! The Bangda fry was out of this world. Felt like home.", stars: 5 },
-  { name: "Ananya Iyer", service: "Boating", text: "The 1.5 hour sunset boating trip was the highlight of our trip. So serene!", stars: 5 },
-  { name: "Vikram Singh", service: "Rental Cars", text: "Very well-maintained Innova. Seamless booking process. Highly recommended.", stars: 4 },
-];
+const INITIAL_REVIEWS: { name: string, service: string, text: string, stars: number }[] = [];
 
 // EMAILJS CONFIG
 const EMAILJS_SERVICE_ID = 'service_ntov0s3'; 
@@ -102,12 +98,20 @@ const App: React.FC = () => {
   }, [carBooking.start, carBooking.end]);
 
   useEffect(() => {
+    if (BOOKED_DATES.length === 0) {
+      setIsAvailable(roomNights > 0);
+      return;
+    }
+
     const start = parseISO(roomBooking.checkIn);
     const end = parseISO(roomBooking.checkOut);
-    const hasOverlap = BOOKED_DATES.some(b => 
-      isWithinInterval(start, { start: parseISO(b.start), end: parseISO(b.end) }) ||
-      isWithinInterval(end, { start: parseISO(b.start), end: parseISO(b.end) })
-    );
+    
+    const hasOverlap = BOOKED_DATES.some(b => {
+      const bStart = parseISO(b.start);
+      const bEnd = parseISO(b.end);
+      return (start < bEnd && end > bStart);
+    });
+    
     setIsAvailable(!hasOverlap && roomNights > 0);
   }, [roomBooking.checkIn, roomBooking.checkOut, roomNights]);
 
@@ -362,7 +366,12 @@ const App: React.FC = () => {
                 <div className="space-y-3"><label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em]">Arrival</label><input type="date" value={roomBooking.checkIn} onChange={e=>setRoomBooking(p=>({...p, checkIn: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
                 <div className="space-y-3"><label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em]">Departure</label><input type="date" value={roomBooking.checkOut} onChange={e=>setRoomBooking(p=>({...p, checkOut: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
               </div>
-              {!isAvailable && <div className="p-8 bg-rose-50 border border-rose-100 rounded-[2.5rem] flex items-center gap-5 text-rose-700 font-black uppercase text-sm">Fully Booked</div>}
+              
+              {roomNights === 0 ? (
+                <div className="p-8 bg-amber-50 border border-amber-100 rounded-[2.5rem] flex items-center gap-5 text-amber-700 font-black uppercase text-xs">Please select at least 1 night</div>
+              ) : !isAvailable ? (
+                <div className="p-8 bg-rose-50 border border-rose-100 rounded-[2.5rem] flex items-center gap-5 text-rose-700 font-black uppercase text-sm">Fully Booked</div>
+              ) : null}
               <div className="grid md:grid-cols-3 gap-8">
                 <div className="space-y-3 text-left">
                   <label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em] ml-2">Explorer Count</label>
