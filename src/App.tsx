@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Home, X, AlertTriangle, Waves, Car, UtensilsCrossed, 
-  Plus, Minus, ArrowRight, Phone, Mail, Wifi, Droplets, CookingPot, 
+  Home, Menu, X, Waves, Car, ArrowRight, Phone, Mail, Wifi, Droplets, CookingPot, 
   Sparkles, ShoppingCart, Star, Quote, CheckCircle2, QrCode, 
-  Loader2, MapPin, Camera, Settings, Send
+  Loader2, MapPin, Camera, Settings, Send, Lock, UtensilsCrossed, Plus, Minus
 } from 'lucide-react';
 import { format, differenceInDays, isWithinInterval, parseISO, addDays } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,10 +15,7 @@ import heroBg from './assets/backwater-1.jpg';
 import carBg from './assets/backwater-2.jpg';
 
 // Constants
-const BOOKED_DATES = [
-  { start: '2026-06-05', end: '2026-06-07' },
-  { start: '2026-06-15', end: '2026-06-18' },
-];
+const BOOKED_DATES: { start: string, end: string }[] = [];
 
 const FOOD_MENU = [
   { id: 'rice', name: 'Boiled Rice', price: 50 },
@@ -43,15 +39,18 @@ const INITIAL_REVIEWS = [
   { name: "Vikram Singh", service: "Rental Cars", text: "Very well-maintained Innova. Seamless booking process. Highly recommended.", stars: 4 },
 ];
 
-// EMAILJS CONFIG (Live keys from user)
+// EMAILJS CONFIG
 const EMAILJS_SERVICE_ID = 'service_ntov0s3'; 
-const EMAILJS_BOOKING_TEMPLATE_ID = 'template_booking'; // Create this in EmailJS dashboard
-const EMAILJS_REVIEW_TEMPLATE_ID = 'template_review';   // Create this in EmailJS dashboard
+const EMAILJS_BOOKING_TEMPLATE_ID = 'template_booking'; 
+const EMAILJS_REVIEW_TEMPLATE_ID = 'template_review';   
 const EMAILJS_PUBLIC_KEY = 'eFdPcinuiPwQMOwbT'; 
 
 const App: React.FC = () => {
-  const [paymentStep, setPaymentStep] = useState<'none' | 'scanning' | 'processing' | 'success'>('none');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<'none' | 'whatsapp' | 'scanning' | 'processing' | 'success'>('none');
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+  const [isAuthorized, setIsAdminAuthorized] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
   const [reviews, setReviews] = useState(INITIAL_REVIEWS);
   const [newReview, setNewReview] = useState({ name: '', text: '', stars: 5, service: 'Stay' });
@@ -64,12 +63,13 @@ const App: React.FC = () => {
     emailjs.init(EMAILJS_PUBLIC_KEY);
   }, []);
   
-  // States
+  // Accommodation State
   const [roomBooking, setRoomBooking] = useState({
     checkIn: format(new Date(), 'yyyy-MM-dd'),
     checkOut: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
     guests: 1,
-    roomType: 'Non-AC'
+    roomType: 'Non-AC',
+    floor: '1st'
   });
 
   const [carBooking, setCarBooking] = useState({
@@ -129,37 +129,52 @@ const App: React.FC = () => {
   const sendEmailNotification = async (type: 'booking' | 'review', data: any) => {
     try {
         const templateId = type === 'booking' ? EMAILJS_BOOKING_TEMPLATE_ID : EMAILJS_REVIEW_TEMPLATE_ID;
-        console.log(`Attempting to send ${type} email using Template ID: ${templateId}...`);
-        const result = await emailjs.send(EMAILJS_SERVICE_ID, templateId, data, EMAILJS_PUBLIC_KEY);
-        console.log("Email sent successfully!", result.status, result.text);
+        await emailjs.send(EMAILJS_SERVICE_ID, templateId, data, EMAILJS_PUBLIC_KEY);
         return true;
     } catch (error: any) {
-        console.error("Email send failed! Error Details:", error);
-        alert(`Email Error: ${error?.text || 'Check Template ID or Service ID'}`);
+        console.error("Email send failed:", error);
         return false;
     }
   };
 
   const handleFinalize = () => {
     setOrderNumber('MH' + Math.random().toString(36).substr(2, 9).toUpperCase());
-    setPaymentStep('scanning');
+    setPaymentStep('scanning'); // Direct to payment, verify mobile during process
+  };
+
+  const sendWhatsAppNotification = async (details: any) => {
+    // API KEY placeholder for CallMeBot (User needs to provide this)
+    const apiKey = 'YOUR_CALLMEBOT_API_KEY'; 
+    if (apiKey === 'YOUR_CALLMEBOT_API_KEY') {
+        console.log("WhatsApp API not configured. Details:", details);
+        return;
+    }
+
+    const message = `*NEW BOOKING* ID: ${details.order_number} Total: ₹${details.total_amount}. Check Email for details.`;
+    const url = `https://api.callmebot.com/whatsapp.php?phone=918431232860&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
+    
+    try {
+        await fetch(url, { mode: 'no-cors' });
+    } catch (e) {
+        console.error("WhatsApp notification failed", e);
+    }
   };
 
   const handleSimulatePayment = async () => {
     setPaymentStep('processing');
     
-    // Construct booking details for email
     const bookingDetails = {
         order_number: orderNumber,
         total_amount: totalCost,
-        stay: `${roomNights} nights, ${roomBooking.guests} guests (${roomBooking.roomType})`,
-        car: carBooking.active ? `${carBooking.model.toUpperCase()} from ${carBooking.start} to ${carBooking.end}` : 'None',
-        boating: boatingBooking.active ? `${boatingBooking.duration}hr trip at ${boatingBooking.timeSlot}` : 'None',
-        food: Object.keys(foodOrder).length > 0 ? `${Object.keys(foodOrder).length} items ordered` : 'None',
+        stay: `${roomNights} nights, Floor: ${roomBooking.floor}, ${roomBooking.guests} guests (${roomBooking.roomType})`,
+        car: carBooking.active ? `${carBooking.model.toUpperCase()}` : 'None',
+        boating: boatingBooking.active ? `${boatingBooking.duration}hr trip` : 'None',
         admin_email: 'mahalakshmihost@gmail.com'
     };
 
+    // Send both in background
     await sendEmailNotification('booking', bookingDetails);
+    await sendWhatsAppNotification(bookingDetails);
 
     setTimeout(() => {
       setPaymentStep('success');
@@ -171,7 +186,6 @@ const App: React.FC = () => {
     e.preventDefault();
     if (newReview.name && newReview.text) {
       setEmailStatus('sending');
-      
       const success = await sendEmailNotification('review', {
         from_name: newReview.name,
         message: newReview.text,
@@ -179,15 +193,11 @@ const App: React.FC = () => {
         service: newReview.service,
         admin_email: 'mahalakshmihost@gmail.com'
       });
-
       if (success) {
         setReviews([newReview, ...reviews]);
         setNewReview({ name: '', text: '', stars: 5, service: 'Stay' });
         setEmailStatus('sent');
         setTimeout(() => setEmailStatus('idle'), 3000);
-        alert("Review submitted and details sent to mahalakshmihost@gmail.com!");
-      } else {
-        setEmailStatus('error');
       }
     }
   };
@@ -198,7 +208,17 @@ const App: React.FC = () => {
     setBoatingBooking(p => ({ ...p, active: true, duration: '1.5', timeSlot: '05:00 PM' }));
     setFoodOrder({ 'bangda-fry': 1, 'rice': 1, 'prawns': 1 });
     confetti.current?.addConfetti({ emojis: ['✨', '💎', '🔥'] });
-    alert("Ultimate Luxury Package Selected! Stay, Innova Rental, Sunset Boating, and Coastal Meals added.");
+    alert("Ultimate Luxury Package Selected!");
+  };
+
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPin === '2026') { 
+      setIsAdminAuthorized(true);
+    } else {
+      alert("Unauthorized: Incorrect PIN");
+      setAdminPin('');
+    }
   };
 
   const handleAdminUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,12 +240,12 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen font-sans bg-[#f0f9fa] pb-20 selection:bg-primary selection:text-white">
-      {/* Vibrant Tropical Header */}
+    <div className="min-h-screen font-sans bg-[#fdfaf5] pb-20 selection:bg-primary selection:text-white overflow-x-hidden w-full max-w-full text-[#2d2a26]">
+      {/* Navbar */}
       <motion.nav 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        className="fixed w-full z-50 bg-gradient-to-r from-primary via-primary to-secondary backdrop-blur-xl border-b border-white/10 shadow-2xl"
+        className="fixed w-full z-50 bg-primary/95 backdrop-blur-xl border-b border-white/5 shadow-2xl"
       >
         <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
           <motion.div 
@@ -233,263 +253,193 @@ const App: React.FC = () => {
             className="flex items-center gap-4 cursor-pointer group"
           >
             <div className="relative">
-              <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 group-hover:border-accent group-hover:bg-accent/20 transition-all duration-500 shadow-xl overflow-hidden">
-                {/* Modern "M" + Wave Emblem */}
-                <div className="relative flex flex-col items-center justify-center">
-                  <span className="text-2xl font-black text-white group-hover:text-accent font-serif leading-none -mb-1 transition-colors">M</span>
-                  <Waves size={16} className="text-accent group-hover:text-white transition-colors" strokeWidth={3} />
+              <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10 group-hover:border-highlight group-hover:bg-highlight/20 transition-all duration-500 shadow-xl overflow-hidden">
+                <div className="relative flex flex-col items-center justify-center text-white group-hover:text-highlight">
+                  <span className="text-2xl font-black font-serif leading-none -mb-1">M</span>
+                  <Waves size={16} strokeWidth={3} />
                 </div>
-                {/* Subtle glow effect */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-accent/0 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
             </div>
             <div className="leading-none text-left">
-              <h1 className="text-xl font-black text-white tracking-widest uppercase mb-0.5">Mahalakshmi</h1>
+              <h1 className="text-xl font-black text-white tracking-[0.1em] uppercase mb-0.5">Mahalakshmi</h1>
               <div className="flex items-center gap-2">
-                <div className="h-px w-4 bg-accent/50 group-hover:w-8 transition-all"></div>
-                <span className="text-[9px] font-black text-accent uppercase tracking-[0.4em]">Coastal</span>
+                <div className="h-px w-4 bg-highlight/50"></div>
+                <span className="text-[9px] font-black text-highlight uppercase tracking-[0.4em]">Coastal Lodge</span>
               </div>
             </div>
           </motion.div>
           
-          <div className="hidden md:flex items-center space-x-10 font-black text-white uppercase text-[10px] tracking-[0.3em]">
+          <div className="hidden md:flex items-center space-x-10 font-black text-white/70 uppercase text-[10px] tracking-[0.4em]">
             {['home', 'booking', 'services', 'food', 'reviews'].map((link) => (
-              <motion.a 
-                key={link}
-                whileHover={{ y: -1, color: '#fcd34d' }}
-                className="transition-colors cursor-pointer"
-                href={`#${link}`}
-              >
-                {link}
-              </motion.a>
+              <a key={link} href={`#${link}`} className="hover:text-highlight transition-colors">{link}</a>
             ))}
           </div>
 
           <div className="flex items-center gap-4">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsAdminOpen(true)}
-              className="p-2 text-white/50 hover:text-accent transition-colors"
-            >
-              <Settings size={18} />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleFinalize}
-              disabled={!isAvailable || totalCost === 0}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all shadow-lg ${isAvailable && totalCost > 0 ? 'bg-accent text-primary shadow-accent/20' : 'bg-white/10 text-white/20 cursor-not-allowed'}`}
-            >
-              <ShoppingCart size={14} />
-              <span>Finalize Trip</span>
-              {totalCost > 0 && <span className="flex items-center justify-center bg-white text-primary w-5 h-5 rounded-full text-[10px] shadow-sm">{ (roomNights > 0 ? 1 : 0) + (carBooking.active ? 1 : 0) + (boatingBooking.active ? 1 : 0) + (Object.keys(foodOrder).length > 0 ? 1 : 0) }</span>}
-            </motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => setIsAdminOpen(true)} className="p-2 text-white/40 hover:text-highlight hidden sm:block"><Settings size={18} /></motion.button>
+            <motion.button onClick={handleFinalize} className="flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-[10px] bg-highlight text-white uppercase tracking-widest shadow-lg shadow-orange-500/20"><ShoppingCart size={14} /><span>Book Now</span></motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-white p-2 bg-white/10 rounded-lg"><Menu size={20} /></motion.button>
           </div>
         </div>
+
+        {/* Mobile Menu Overlay */}
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="md:hidden bg-primary border-t border-white/5 overflow-hidden">
+              <div className="px-6 py-10 flex flex-col gap-8">
+                {['home', 'booking', 'services', 'food', 'reviews'].map((link) => (
+                  <a key={link} href={`#${link}`} onClick={() => setIsMenuOpen(false)} className="text-white font-black uppercase text-sm tracking-[0.5em] hover:text-highlight transition-colors">{link}</a>
+                ))}
+                <button onClick={() => { setIsAdminOpen(true); setIsMenuOpen(false); }} className="flex items-center gap-3 text-white/40 text-[10px] font-black uppercase tracking-widest"><Settings size={16} /> Lodge Admin</button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.nav>
 
       {/* Hero Section */}
       <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden">
-        <motion.div initial={{ scale: 1.2 }} animate={{ scale: 1 }} transition={{ duration: 1.5 }} className="absolute inset-0 z-0">
-          <img src={heroBg} className="w-full h-full object-cover" alt="Maha Coastal Backwaters" />
-          <div className="absolute inset-0 bg-teal-950/40 backdrop-blur-[1px]"></div>
+        <motion.div initial={{ scale: 1.1 }} animate={{ scale: 1 }} transition={{ duration: 2 }} className="absolute inset-0 z-0">
+          <img src={heroBg} className="w-full h-full object-cover" alt="Hero" />
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/30 to-[#fdfaf5]"></div>
         </motion.div>
-        <div className="relative z-10 text-center px-6">
-          <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }}>
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-accent/20 backdrop-blur-md rounded-full text-accent text-[10px] font-black uppercase tracking-[0.4em] mb-6 border border-accent/20 shadow-xl">
-              <Sparkles size={14} /> Nature's Gateway
-            </span>
-            <h1 className="text-6xl md:text-[8rem] font-black text-white mb-6 tracking-tighter leading-[0.8] uppercase">
-              MAHALAKSHMI <br />
-              <motion.span animate={{ color: ['#ffffff', '#fcd34d', '#ffffff'] }} transition={{ duration: 5, repeat: Infinity }} className="text-accent italic font-serif normal-case tracking-normal">Homestay</motion.span>
-            </h1>
-            <p className="text-lg md:text-xl text-white/80 mb-12 max-w-xl mx-auto font-medium leading-relaxed">Escape to the serenity of our backwater homestay. Local flavors, private boating, and absolute comfort.</p>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row gap-5 justify-center">
-                <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} href="#booking" className="bg-secondary text-white px-10 py-5 rounded-2xl text-lg font-black shadow-2xl shadow-rose-500/40">Book Your Stay</motion.a>
-                <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} href="https://maps.app.goo.gl/wzTkRPYoYqFgVUkw6" target="_blank" className="bg-white/10 backdrop-blur-md text-white border-2 border-white/30 px-10 py-5 rounded-2xl text-lg font-black flex items-center justify-center gap-3 hover:bg-white/20 transition-all"><MapPin size={20} /> View Location</motion.a>
-              </div>
-              <div className="flex flex-wrap gap-3 justify-center">
-                {[
-                  { label: "Book Rental Car", href: "#services", icon: <Car size={16} /> },
-                  { label: "Book Backwater Boating", href: "#services", icon: <Waves size={16} /> },
-                  { label: "Order Food", href: "#food", icon: <UtensilsCrossed size={16} /> }
-                ].map((btn, i) => (
-                  <motion.a 
-                    key={i}
-                    whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.2)' }}
-                    whileTap={{ scale: 0.95 }}
-                    href={btn.href}
-                    className="px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
-                  >
-                    {btn.icon} {btn.label}
-                  </motion.a>
-                ))}
-              </div>
+        <div className="relative z-10 text-center px-6 mt-10">
+          <span className="inline-flex items-center gap-3 px-6 py-2.5 bg-primary/20 backdrop-blur-md rounded-full text-white text-[11px] font-black uppercase tracking-[0.5em] mb-10 border border-white/10 shadow-2xl">
+            <Sparkles size={16} className="text-highlight animate-pulse" /> Be Born Again
+          </span>
+          <h1 className="text-5xl xs:text-6xl sm:text-7xl md:text-[9rem] font-black text-white mb-8 tracking-tight leading-[0.85] uppercase drop-shadow-2xl">
+            MAHALAKSHMI <br />
+            <span className="text-highlight italic font-serif normal-case tracking-normal block mt-4 text-6xl md:text-[6rem]">Coastal Lodge</span>
+          </h1>
+          <p className="text-lg md:text-xl text-white/80 mb-14 max-w-xl mx-auto font-medium leading-relaxed">Where the backwaters meet the wild.</p>
+          <div className="flex flex-col gap-6 items-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#booking" className="bg-highlight text-white px-12 py-5 rounded-2xl text-lg font-black shadow-2xl shadow-orange-500/30 uppercase tracking-widest">Plan Your Stay</a>
+                <a href="https://maps.app.goo.gl/wzTkRPYoYqFgVUkw6" target="_blank" className="bg-white/10 backdrop-blur-md text-white border-2 border-white/30 px-12 py-5 rounded-2xl text-lg font-black flex items-center justify-center gap-4 hover:bg-white/20 transition-all uppercase tracking-widest"><MapPin size={22} /> Explore Map</a>
             </div>
-          </motion.div>
+            <div className="flex flex-wrap gap-2 justify-center max-w-lg mx-auto">
+                {[
+                  { label: "Rental Car", href: "#services", icon: <Car size={14} /> },
+                  { label: "Boating", href: "#services", icon: <Waves size={14} /> },
+                  { label: "Order Food", href: "#food", icon: <UtensilsCrossed size={14} /> }
+                ].map((btn, i) => (
+                  <a key={i} href={btn.href} className="px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/20 transition-all">{btn.icon} {btn.label}</a>
+                ))}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Booking Section */}
-      <section id="booking" className="py-32 px-6">
+      <section id="booking" className="py-32 px-4 sm:px-6 bg-[#fdfaf5]">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-[4rem] shadow-3xl border border-teal-50 overflow-hidden flex flex-col lg:flex-row">
-            <div className="lg:w-[40%] p-10 md:p-16 bg-primary text-white space-y-10 relative">
-              <h2 className="text-4xl font-black font-serif leading-tight relative z-10">Premium Stay Facilities</h2>
-              <div className="grid grid-cols-1 gap-6 relative z-10">
-                {[
-                  { icon: <Wifi />, t: "Free WiFi", d: "High-speed fiber connectivity." },
-                  { icon: <Droplets />, t: "Purified Water", d: "24/7 RO drinking water." },
-                  { icon: <CookingPot />, t: "Kitchen Space", d: "Cook your own meals anytime." }
-                ].map((item, i) => (
-                  <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
-                    <div className="text-accent">{item.icon}</div>
-                    <div><h4 className="font-bold text-sm">{item.t}</h4><p className="text-[10px] text-white/40">{item.d}</p></div>
+          <div className="bg-white rounded-[3rem] sm:rounded-[5rem] shadow-3xl border border-stone-100 overflow-hidden flex flex-col lg:flex-row">
+            <div className="lg:w-[45%] p-10 md:p-20 bg-primary text-white space-y-12 relative overflow-hidden text-left">
+              <h2 className="text-4xl sm:text-5xl font-black font-title uppercase tracking-tight">The Wilderness Experience</h2>
+              <div className="grid grid-cols-1 gap-8">
+                {[{icon:<Wifi/>,t:"Eco-Connect"},{icon:<Droplets/>,t:"Pure Spring"},{icon:<CookingPot/>,t:"Rustic Kitchen"}].map((item, i)=>(
+                  <div key={i} className="flex gap-6 p-6 bg-white/5 rounded-[2rem] border border-white/10 hover:bg-white/10 transition-all group">
+                    <div className="text-highlight group-hover:scale-110 transition-transform">{item.icon}</div>
+                    <h4 className="font-black text-lg uppercase tracking-tight">{item.t}</h4>
                   </div>
                 ))}
               </div>
-
-              {/* All-in-One Option */}
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleAllInOne}
-                className="w-full mt-6 p-6 bg-gradient-to-br from-accent to-yellow-500 rounded-[2rem] text-primary relative overflow-hidden group shadow-xl"
-              >
-                <div className="relative z-10 text-left">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles size={16} className="animate-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Everything We Liked</span>
-                  </div>
-                  <h4 className="text-xl font-black uppercase leading-none mb-1">Ultimate Luxury</h4>
-                  <p className="text-[9px] font-bold opacity-80">STAY + INNOVA + BOATING + MEALS</p>
-                </div>
-                <div className="absolute top-1/2 -right-4 -translate-y-1/2 opacity-20 group-hover:rotate-12 transition-transform">
-                  <ShoppingCart size={80} />
-                </div>
+              <motion.button onClick={handleAllInOne} className="w-full mt-10 p-8 bg-gradient-to-br from-highlight to-secondary rounded-[2.5rem] text-white text-left relative overflow-hidden group shadow-2xl">
+                 <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-1"><Sparkles size={16}/><span className="text-[10px] font-black uppercase">Signature Choice</span></div>
+                    <h4 className="text-3xl font-black uppercase leading-none">Ultimate Luxury</h4>
+                 </div>
+                 <ShoppingCart size={120} className="absolute top-1/2 -right-8 -translate-y-1/2 opacity-10 scale-150" />
               </motion.button>
-
-              <div className="absolute bottom-0 left-0 w-full h-64 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
             </div>
-            <div className="lg:w-[60%] p-10 md:p-16 space-y-10">
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-teal-900/30 uppercase tracking-[0.3em]">Check-In</label>
-                  <input type="date" value={roomBooking.checkIn} onChange={e => setRoomBooking(p => ({...p, checkIn: e.target.value}))} className="w-full p-5 bg-teal-50/50 rounded-[1.5rem] border-2 border-transparent focus:border-primary outline-none font-bold" />
+
+            <div className="lg:w-[55%] p-10 md:p-20 space-y-14 text-left">
+              <div className="space-y-4">
+                <span className="text-highlight font-black tracking-[0.5em] uppercase text-[10px]">Your Itinerary</span>
+                <h3 className="text-5xl font-black text-primary font-title uppercase leading-none">Book Your Escape</h3>
+              </div>
+              <div className="grid md:grid-cols-2 gap-10">
+                <div className="space-y-3"><label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em]">Arrival</label><input type="date" value={roomBooking.checkIn} onChange={e=>setRoomBooking(p=>({...p, checkIn: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
+                <div className="space-y-3"><label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em]">Departure</label><input type="date" value={roomBooking.checkOut} onChange={e=>setRoomBooking(p=>({...p, checkOut: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
+              </div>
+              {!isAvailable && <div className="p-8 bg-rose-50 border border-rose-100 rounded-[2.5rem] flex items-center gap-5 text-rose-700 font-black uppercase text-sm">Fully Booked</div>}
+              <div className="grid md:grid-cols-3 gap-8">
+                <div className="space-y-3 text-left">
+                  <label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em] ml-2">Explorer Count</label>
+                  <select value={roomBooking.guests} onChange={e=>setRoomBooking(p=>({...p, guests: parseInt(e.target.value)}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-0 outline-none font-black text-primary appearance-none cursor-pointer shadow-inner">
+                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} Guests</option>)}
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-teal-900/30 uppercase tracking-[0.3em]">Check-Out</label>
-                  <input type="date" value={roomBooking.checkOut} onChange={e => setRoomBooking(p => ({...p, checkOut: e.target.value}))} className="w-full p-5 bg-teal-50/50 rounded-[1.5rem] border-2 border-transparent focus:border-primary outline-none font-bold" />
+                <div className="space-y-3 text-left">
+                  <label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em] ml-2">Select Floor</label>
+                  <select value={roomBooking.floor} onChange={e=>setRoomBooking(p=>({...p, floor: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-0 outline-none font-black text-primary appearance-none cursor-pointer shadow-inner">
+                    <option value="1st">1st Floor</option>
+                    <option value="2nd">2nd Floor</option>
+                    <option value="Both">Both Floors</option>
+                  </select>
+                </div>
+                <div className="space-y-3 text-left">
+                  <label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em] ml-2">Stay Comfort</label>
+                  <div className="flex gap-3 p-2 bg-stone-100 rounded-[2rem]">
+                    {['Non-AC', 'AC'].map(t => <button key={t} onClick={()=>setRoomBooking(p=>({...p, roomType: t}))} className={`flex-1 py-4 rounded-2xl font-black transition-all uppercase text-[10px] ${roomBooking.roomType === t ? 'bg-white shadow-xl text-primary scale-105' : 'text-primary/30'}`}>{t}</button>)}
+                  </div>
                 </div>
               </div>
-              {!isAvailable && <div className="p-5 bg-rose-50 border border-rose-100 rounded-3xl flex items-center gap-4 text-rose-600 font-bold"><AlertTriangle size={24} /><span>Fully Booked on these dates.</span></div>}
-              <div className="grid md:grid-cols-2 gap-8">
-                <select value={roomBooking.guests} onChange={e => setRoomBooking(p => ({...p, guests: parseInt(e.target.value)}))} className="w-full p-5 bg-teal-50/50 rounded-[1.5rem] border-0 outline-none font-bold">
-                  {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} Guests</option>)}
-                </select>
-                <div className="flex gap-2 p-1.5 bg-teal-50/50 rounded-[1.5rem]">
-                  {['Non-AC', 'AC'].map(t => <button key={t} onClick={() => setRoomBooking(p => ({...p, roomType: t}))} className={`flex-1 py-3 rounded-xl font-bold transition-all ${roomBooking.roomType === t ? 'bg-white shadow-md text-primary' : 'text-teal-900/30'}`}>{t}</button>)}
-                </div>
-              </div>
-              <div className="p-8 bg-teal-50 rounded-[2.5rem] border border-teal-100 flex justify-between items-center">
-                <div><span className="text-[10px] font-black text-teal-400 uppercase tracking-widest block mb-1">Total Stay</span><span className="text-4xl font-black text-teal-900">₹{(roomBooking.roomType === 'AC' ? 3500 : 3000) * roomNights}</span></div>
-                <a href="#services" className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-teal-500/20">Add Services</a>
+              <div className="p-10 bg-primary/5 rounded-[3rem] border border-primary/5 flex flex-col md:flex-row justify-between items-center gap-8 shadow-sm">
+                <div><span className="text-[10px] font-black text-primary/40 uppercase block mb-2 tracking-[0.4em]">Package Estimate</span><span className="text-5xl font-black text-primary uppercase">₹{(roomBooking.roomType === 'AC' ? 3500 : 3000) * roomNights}</span></div>
+                <a href="#services" className="bg-primary text-white px-10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.3em] flex items-center gap-4">Enhance Trip <ArrowRight size={18}/></a>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Rental Cars - Lush Tropical UI */}
-      <section id="services" className="py-32 relative overflow-hidden bg-teal-950">
-        <div className="absolute inset-0 z-0">
-          <img src={carBg} className="w-full h-full object-cover opacity-30" alt="Tropical Nature" />
-          <div className="absolute inset-0 bg-gradient-to-tr from-teal-950 via-teal-950/80 to-transparent"></div>
-        </div>
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <div className="text-center mb-20">
-            <h2 className="text-5xl font-black text-white font-serif tracking-tight">Explore with Freedom</h2>
-            <p className="text-accent font-black tracking-[0.5em] uppercase text-[10px] mt-4">Premium Rental Fleet</p>
-          </div>
-          <div className="grid lg:grid-cols-2 gap-10">
-            <div className={`bg-white/5 backdrop-blur-xl p-10 md:p-12 rounded-[4rem] shadow-2xl border-2 transition-all duration-500 ${carBooking.active ? 'border-accent shadow-accent/10' : 'border-white/10'}`}>
-              <div className="flex justify-between items-start mb-12">
-                <div className="flex gap-5">
-                  <div className={`p-5 rounded-3xl transition-all ${carBooking.active ? 'bg-accent text-primary shadow-xl' : 'bg-white/10 text-teal-400'}`}><Car size={32} /></div>
-                  <div className="text-left"><h3 className="text-2xl font-black text-white uppercase tracking-tighter">Rental Cars</h3><p className="text-teal-400 text-xs font-bold">+91 8105934576</p></div>
-                </div>
-                <button onClick={() => setCarBooking(p => ({...p, active: !p.active}))} className={`px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${carBooking.active ? 'bg-rose-500 text-white' : 'bg-white/10 text-white/40 hover:bg-white/20'}`}>{carBooking.active ? 'Remove' : 'Add Rental'}</button>
+      {/* Experience Fleet */}
+      <section id="services" className="py-40 relative overflow-hidden bg-primary text-white">
+        <div className="absolute inset-0 z-0"><img src={carBg} className="w-full h-full object-cover opacity-20" alt="Nature"/><div className="absolute inset-0 bg-gradient-to-tr from-primary via-primary/80 to-transparent"></div></div>
+        <div className="max-w-7xl mx-auto px-6 relative z-10 text-left">
+           <div className="text-center mb-24"><span className="text-highlight font-black tracking-[0.6em] uppercase text-[10px]">Lodge Services</span><h2 className="text-5xl sm:text-7xl font-black font-title uppercase tracking-tight leading-tight mt-6">Venture Further</h2></div>
+           <div className="grid lg:grid-cols-2 gap-14">
+              {/* Car Experience */}
+              <div className={`bg-white/5 backdrop-blur-3xl p-12 md:p-16 rounded-[4rem] border-2 transition-all duration-500 ${carBooking.active ? 'border-highlight shadow-orange-500/10' : 'border-white/10'}`}>
+                <div className="flex justify-between items-start mb-16"><div className="flex gap-6"><div className={`p-6 rounded-[2rem] transition-all ${carBooking.active ? 'bg-highlight text-white' : 'bg-white/10 text-highlight'}`}><Car size={40}/></div><div className="space-y-1 text-left"><h3 className="text-3xl font-black uppercase leading-none">Rental Fleet</h3><p className="text-highlight/60 text-xs font-black uppercase tracking-widest">+91 8105934576</p></div></div><button onClick={()=>setCarBooking(p=>({...p, active: !p.active}))} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase transition-all ${carBooking.active ? 'bg-rose-500 text-white' : 'bg-white/10 text-white/40'}`}>{carBooking.active ? 'Drop Rental' : 'Add Rental'}</button></div>
+                <div className="space-y-12 text-left"><div className="grid grid-cols-2 gap-6"><input type="date" value={carBooking.start} onChange={e=>setCarBooking(p=>({...p, start: e.target.value, active: true}))} className="w-full p-6 bg-white/5 rounded-[2rem] border-0 font-black text-sm text-white" /><input type="date" value={carBooking.end} onChange={e=>setCarBooking(p=>({...p, end: e.target.value, active: true}))} className="w-full p-6 bg-white/5 rounded-[2rem] border-0 font-black text-sm text-white" /></div><div className="grid grid-cols-3 gap-4">{CAR_MODELS.map(m=>(<button key={m.id} onClick={()=>setCarBooking(p=>({...p, model: m.id, active: true}))} className={`p-6 rounded-[2.5rem] border-2 transition-all text-center ${carBooking.active && carBooking.model === m.id ? 'border-highlight bg-highlight/20' : 'border-white/5'}`}><span className="block font-black text-white text-xs uppercase mb-1">{m.name}</span><span className="text-[10px] font-black text-highlight">₹{m.price}/D</span></button>))}</div></div>
               </div>
-              <div className="space-y-8">
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="date" value={carBooking.start} onChange={e => setCarBooking(p => ({...p, start: e.target.value, active: true}))} className="w-full p-4 bg-white/10 rounded-2xl border-0 font-bold text-sm text-white outline-none" />
-                  <input type="date" value={carBooking.end} onChange={e => setCarBooking(p => ({...p, end: e.target.value, active: true}))} className="w-full p-4 bg-white/10 rounded-2xl border-0 font-bold text-sm text-white outline-none" />
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {CAR_MODELS.map(m => (
-                    <button key={m.id} onClick={() => setCarBooking(p => ({...p, model: m.id, active: true}))} className={`p-4 rounded-3xl border-2 transition-all text-center ${carBooking.active && carBooking.model === m.id ? 'border-accent bg-accent/20' : 'border-white/10 hover:border-accent/40'}`}>
-                      <span className="block font-black text-white text-xs">{m.name}</span>
-                      <span className="text-[10px] font-bold text-accent">₹{m.price}/d</span>
-                    </button>
-                  ))}
-                </div>
+              {/* Boating Experience */}
+              <div className={`bg-white/5 backdrop-blur-3xl p-12 md:p-16 rounded-[4rem] border-2 transition-all duration-500 ${boatingBooking.active ? 'border-highlight shadow-orange-500/10' : 'border-white/10'}`}>
+                <div className="flex justify-between items-start mb-16"><div className="flex gap-6 text-left"><div className={`p-6 rounded-[2rem] transition-all ${boatingBooking.active ? 'bg-highlight text-white' : 'bg-white/10 text-highlight'}`}><Waves size={40}/></div><div className="space-y-1"><h3 className="text-3xl font-black uppercase leading-none">Backwater Trip</h3><p className="text-highlight/60 text-[10px] font-black uppercase tracking-widest">Honnavar Railway Bridge View</p><p className="text-accent text-[9px] font-black">+91 9686670458</p></div></div><button onClick={()=>setBoatingBooking(p=>({...p, active: !p.active}))} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase transition-all ${boatingBooking.active ? 'bg-rose-500 text-white' : 'bg-white/10 text-white/40'}`}>{boatingBooking.active ? 'Cancel Trip' : 'Select Ride'}</button></div>
+                <div className="space-y-12 text-left"><div className="grid grid-cols-1 sm:grid-cols-3 gap-6"><input type="date" value={boatingBooking.date} onChange={e=>setBoatingBooking(p=>({...p, date: e.target.value, active: true}))} className="w-full p-6 bg-white/5 rounded-[2rem] border-0 font-black text-[11px] text-white" /><select value={boatingBooking.people} onChange={e=>setBoatingBooking(p=>({...p, people: parseInt(e.target.value), active: true}))} className="w-full p-6 bg-white/5 rounded-[2rem] border-0 font-black text-[11px] text-white appearance-none cursor-pointer">{[1,2,3,4,5,6,7,8].map(n=>(<option key={n} value={n} className="text-primary">{n} Explorers</option>))}</select><div className="flex gap-2 p-1.5 bg-white/5 rounded-[2rem] h-[68px]">{['1.0','1.5'].map(d=>(<button key={d} onClick={()=>setBoatingBooking(p=>({...p, duration: d, active: true}))} className={`flex-1 rounded-[1.5rem] text-[11px] font-black transition-all ${boatingBooking.duration === d ? 'bg-highlight text-white' : 'text-highlight/40'}`}>{d}H</button>))}</div></div><div className="flex flex-wrap justify-center gap-3">{['06:00 AM','09:00 AM','12:00 PM','03:00 PM','05:00 PM'].map(slot=>(<button key={slot} onClick={()=>setBoatingBooking(p=>({...p, timeSlot: slot, active: true}))} className={`px-6 py-4 rounded-2xl text-[10px] font-black border-2 transition-all ${boatingBooking.timeSlot === slot ? 'bg-highlight border-highlight text-white' : 'bg-white/5 border-white/5 text-white/30'}`}>{slot}</button>))}</div></div>
               </div>
-            </div>
-            {/* Boating remains premium */}
-            <div className="bg-white/5 backdrop-blur-xl p-10 md:p-12 rounded-[4rem] text-white relative overflow-hidden shadow-2xl border border-white/10">
-              <div className="relative z-10 flex justify-between items-start mb-12">
-                <div className="flex gap-5 text-left">
-                  <div className={`p-5 rounded-3xl transition-all ${boatingBooking.active ? 'bg-accent text-primary' : 'bg-white/10 text-teal-400'}`}><Waves size={32} /></div>
-                  <div><h3 className="text-2xl font-black uppercase tracking-tighter">Backwater Boating</h3><p className="text-teal-400 text-[10px] font-bold mt-1">Includes Honnavar Railway Bridge View</p><p className="text-accent text-[8px] font-bold uppercase tracking-widest">+91 9686670458</p></div>
-                </div>
-                <button onClick={() => setBoatingBooking(p => ({...p, active: !p.active}))} className={`px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest ${boatingBooking.active ? 'bg-rose-500 text-white' : 'bg-white/10 text-white/40'}`}>{boatingBooking.active ? 'Remove' : 'Select Boating'}</button>
-              </div>
-              <div className="relative z-10 space-y-8">
-                <div className="grid grid-cols-3 gap-3">
-                  <input type="date" value={boatingBooking.date} onChange={e => setBoatingBooking(p => ({...p, date: e.target.value, active: true}))} className="p-4 bg-white/10 rounded-2xl border-0 font-bold text-[10px] text-white outline-none" />
-                  <select value={boatingBooking.people} onChange={e => setBoatingBooking(p => ({...p, people: parseInt(e.target.value), active: true}))} className="p-4 bg-white/10 rounded-2xl border-0 font-bold text-[10px] text-white outline-none appearance-none">
-                    {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n} className="text-teal-900">{n} People</option>)}
-                  </select>
-                  <div className="flex gap-1 p-1 bg-white/10 rounded-2xl">
-                    {['1.0', '1.5'].map(d => <button key={d} onClick={() => setBoatingBooking(p => ({...p, duration: d, active: true}))} className={`flex-1 rounded-xl text-[10px] font-black transition-all ${boatingBooking.duration === d ? 'bg-accent text-primary' : 'text-teal-500'}`}>{d}H</button>)}
-                  </div>
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {['06:00 AM', '09:00 AM', '12:00 PM', '03:00 PM', '05:00 PM'].map(slot => (
-                    <button key={slot} onClick={() => setBoatingBooking(p => ({...p, timeSlot: slot, active: true}))} className={`p-2 rounded-xl text-[8px] font-black border transition-all ${boatingBooking.timeSlot === slot ? 'bg-accent border-accent text-primary' : 'bg-white/10 border-white/5 text-white/40 hover:bg-white/20'}`}>{slot}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="absolute -bottom-20 -right-20 opacity-5 pointer-events-none text-accent"><Waves size={300} /></div>
-            </div>
-          </div>
+           </div>
         </div>
       </section>
 
       {/* Food Section */}
-      <section id="food" className="py-32 bg-white">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-10">
-            <div className="text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2 mb-2 text-secondary"><UtensilsCrossed size={20} /><span className="text-[10px] font-black uppercase tracking-[0.4em]">Dining</span></div>
-              <h3 className="text-5xl font-black text-teal-950 font-serif leading-tight">Coastal Soul Food</h3>
+      <section id="food" className="py-40 bg-[#fdfaf5]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-24 gap-12 text-left">
+            <div className="space-y-4">
+              <span className="text-highlight font-black tracking-[0.6em] uppercase text-[10px]">Local Palette</span>
+              <h3 className="text-5xl sm:text-6xl font-black text-primary font-title uppercase tracking-tight">Coastal Soul Food</h3>
             </div>
-            <div className="bg-secondary p-8 rounded-[3rem] text-white max-w-sm shadow-2xl relative overflow-hidden">
-              <span className="block text-rose-200 font-black text-[10px] uppercase tracking-[0.2em] mb-2 text-left">Fresh Home Cooked</span>
-              <p className="text-lg font-bold leading-tight text-left">Proper Coastal Food at Home using secret local spices.</p>
-              <p className="mt-4 font-black text-xl text-left">+91 9886727957</p>
-              <CookingPot className="absolute -bottom-10 -right-10 text-white/5 w-40 h-40" />
+            <div className="bg-secondary p-10 md:p-14 rounded-[4rem] text-white max-w-md shadow-2xl relative overflow-hidden text-left">
+                <span className="block text-white/40 font-black text-[10px] uppercase tracking-[0.5em] mb-4">Fresh from our Kitchen</span>
+                <p className="text-2xl font-black uppercase leading-tight mb-8">Proper Coastal Food with secret local spices.</p>
+                <div className="flex items-center gap-4 pt-8 border-t border-white/10">
+                  <div className="p-3 bg-white/10 rounded-2xl"><Phone size={20} /></div>
+                  <div><p className="text-[9px] font-black text-white/40 uppercase tracking-widest">Order Hotline</p><p className="font-black text-2xl">+91 9886727957</p></div>
+                </div>
+                <CookingPot className="absolute -bottom-16 -right-16 text-white/5 w-64 h-64 -rotate-12" />
             </div>
           </div>
-          <div className="grid md:grid-cols-2 gap-x-12 gap-y-4">
-            {FOOD_MENU.map(item => (
-              <div key={item.id} className="flex justify-between items-center py-4 border-b border-teal-50 hover:bg-teal-50/20 px-4 rounded-xl transition-all">
-                <div className="text-left"><h4 className="font-black text-teal-950 text-base">{item.name}</h4><span className="text-xs font-black text-teal-400">₹{item.price}</span></div>
-                <div className="flex items-center gap-4 bg-white shadow-sm border border-teal-50 rounded-2xl p-1.5">
-                  <button onClick={() => updateFood(item.id, -1)} className="p-1 hover:text-secondary transition-colors"><Minus size={16} /></button>
-                  <span className="w-5 text-center font-black text-teal-950 text-xs">{foodOrder[item.id] || 0}</span>
-                  <button onClick={() => updateFood(item.id, 1)} className="p-1 hover:text-primary transition-colors"><Plus size={16} /></button>
+          <div className="grid md:grid-cols-2 gap-x-20 gap-y-8">
+            {FOOD_MENU.map((item) => (
+              <div key={item.id} className="group flex justify-between items-center p-6 bg-white rounded-[2.5rem] border border-stone-100 transition-all shadow-sm hover:shadow-xl text-left">
+                <div className="space-y-1"><h4 className="font-black text-primary text-lg uppercase tracking-tight group-hover:text-highlight transition-colors">{item.name}</h4><span className="text-[11px] font-black text-secondary tracking-widest block">₹{item.price}</span></div>
+                <div className="flex items-center gap-6 bg-stone-50 rounded-2xl p-2 shadow-inner">
+                  <button onClick={() => updateFood(item.id, -1)} className="p-2 text-stone-300 hover:text-highlight transition-colors"><Minus size={18} /></button>
+                  <span className="w-6 text-center font-black text-primary text-sm">{foodOrder[item.id] || 0}</span>
+                  <button onClick={() => updateFood(item.id, 1)} className="p-2 text-stone-300 hover:text-primary transition-colors"><Plus size={18} /></button>
                 </div>
               </div>
             ))}
@@ -497,168 +447,143 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* Review Section - Enhanced with Form */}
-      <section id="reviews" className="py-32 bg-teal-50/30 rounded-[5rem]">
+      {/* Reviews Section */}
+      <section id="reviews" className="py-40 bg-stone-100/50">
         <div className="max-w-7xl mx-auto px-6 text-left">
-          <div className="text-center mb-20">
-            <h2 className="text-5xl font-black text-teal-950 font-serif mb-4">Guest Feedback</h2>
-            <p className="text-teal-900/40 font-medium uppercase text-[10px] tracking-[0.4em]">Real stories from our visitors</p>
-          </div>
-          <div className="grid lg:grid-cols-3 gap-12">
-            <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-teal-50 h-fit">
-              <div className="flex items-center gap-3 mb-8"><Send className="text-primary" size={24} /><h3 className="text-2xl font-black text-teal-950 uppercase">Write a Review</h3></div>
-              <form onSubmit={handleAddReview} className="space-y-6">
-                <div className="space-y-2"><label className="text-[10px] font-black text-teal-400 uppercase tracking-widest">Your Name</label><input type="text" required value={newReview.name} onChange={e => setNewReview(p => ({...p, name: e.target.value}))} className="w-full p-4 bg-teal-50/50 rounded-2xl outline-none focus:ring-2 focus:ring-primary font-bold text-sm" placeholder="John Doe" /></div>
-                <div className="space-y-2"><label className="text-[10px] font-black text-teal-400 uppercase tracking-widest">Review Text</label><textarea required value={newReview.text} onChange={e => setNewReview(p => ({...p, text: e.target.value}))} className="w-full p-4 bg-teal-50/50 rounded-2xl outline-none focus:ring-2 focus:ring-primary font-bold text-sm h-32 resize-none" placeholder="How was your stay?" /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><label className="text-[10px] font-black text-teal-400 uppercase tracking-widest">Rating</label><select value={newReview.stars} onChange={e => setNewReview(p => ({...p, stars: parseInt(e.target.value)}))} className="w-full p-4 bg-teal-50/50 rounded-2xl outline-none font-bold text-sm">{[5,4,3,2,1].map(n => <option key={n} value={n}>{n} Stars</option>)}</select></div>
-                  <div className="space-y-2"><label className="text-[10px] font-black text-teal-400 uppercase tracking-widest">Service</label><select value={newReview.service} onChange={e => setNewReview(p => ({...p, service: e.target.value}))} className="w-full p-4 bg-teal-50/50 rounded-2xl outline-none font-bold text-sm">{['Stay', 'Food', 'Boating', 'Cars'].map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                </div>
-                <button type="submit" disabled={emailStatus === 'sending'} className={`w-full py-5 bg-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-teal-500/20 transition-all ${emailStatus === 'sending' ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02]'}`}>
-                  {emailStatus === 'sending' ? 'Sending...' : 'Submit Review'}
-                </button>
-              </form>
-            </div>
-            <div className="lg:col-span-2 grid md:grid-cols-2 gap-6 h-fit">
-              {reviews.map((review, i) => (
-                <motion.div key={i} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-teal-900/5 relative group border border-teal-50/50 hover:border-primary transition-all">
-                  <div className="absolute -top-4 -left-4 w-10 h-10 bg-accent rounded-xl flex items-center justify-center text-teal-900 shadow-lg group-hover:rotate-12 transition-transform"><Quote size={16} fill="currentColor" /></div>
-                  <div className="flex gap-1 mb-4 mt-2">{[...Array(review.stars)].map((_, i) => <Star key={i} size={10} className="text-accent" fill="currentColor" />)}</div>
-                  <p className="text-teal-900/70 font-medium mb-6 leading-relaxed italic text-xs">"{review.text}"</p>
-                  <div className="pt-4 border-t border-teal-50 flex items-center justify-between"><h5 className="font-black text-teal-950 text-sm">{review.name}</h5><span className="text-[8px] font-black text-primary uppercase tracking-widest bg-teal-50 px-2 py-1 rounded-full">{review.service}</span></div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
+           <div className="text-center mb-24 space-y-4"><span className="text-highlight font-black tracking-[0.6em] uppercase text-[10px]">Guest Chronicles</span><h2 className="text-5xl sm:text-6xl font-black text-primary font-title uppercase leading-none tracking-tight">Shared Stories</h2></div>
+           <div className="grid lg:grid-cols-3 gap-16">
+              <div className="bg-white p-12 md:p-16 rounded-[4rem] shadow-2xl border border-stone-200 h-fit">
+                 <div className="flex items-center gap-4 mb-12"><div className="p-4 bg-primary rounded-3xl text-white shadow-xl"><Send size={24}/></div><h3 className="text-3xl font-black text-primary font-title uppercase leading-none">Post Review</h3></div>
+                 <form onSubmit={handleAddReview} className="space-y-8">
+                    <div className="space-y-2"><label className="text-[10px] font-black text-primary/30 uppercase tracking-[0.5em] ml-2">Your Name</label><input type="text" required value={newReview.name} onChange={e=>setNewReview(p=>({...p, name: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] outline-none font-black text-sm" placeholder="Explorer Name" /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black text-primary/30 uppercase tracking-[0.5em] ml-2">Experience</label><textarea required value={newReview.text} onChange={e=>setNewReview(p=>({...p, text: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] outline-none font-black text-sm h-40 resize-none" placeholder="Tell us your story..." /></div>
+                    <div className="grid grid-cols-2 gap-6">
+                       <select value={newReview.stars} onChange={e=>setNewReview(p=>({...p, stars: parseInt(e.target.value)}))} className="w-full p-6 bg-stone-50 rounded-[2rem] outline-none font-black text-sm">{[5,4,3,2,1].map(n=>(<option key={n} value={n}>{n} Stars</option>))}</select>
+                       <select value={newReview.service} onChange={e=>setNewReview(p=>({...p, service: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] outline-none font-black text-sm">{['Stay','Food','Boating','Cars'].map(s=>(<option key={s} value={s}>{s}</option>))}</select>
+                    </div>
+                    <motion.button type="submit" disabled={emailStatus === 'sending'} className={`w-full py-6 bg-primary text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.4em] shadow-2xl ${emailStatus === 'sending' ? 'opacity-50' : ''}`}>Submit Story</motion.button>
+                 </form>
+              </div>
+              <div className="lg:col-span-2 grid md:grid-cols-2 gap-10">
+                 {reviews.map((review, i)=>(
+                    <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} className="bg-white p-10 md:p-14 rounded-[4rem] shadow-xl relative border border-stone-100 text-left">
+                       <div className="absolute -top-6 -left-6 w-16 h-16 bg-highlight rounded-3xl flex items-center justify-center text-white shadow-2xl transition-transform group-hover:rotate-12"><Quote size={28} fill="currentColor"/></div>
+                       <div className="flex gap-1.5 mb-8 mt-2">{[...Array(review.stars)].map((_, i)=>(<Star key={i} size={14} className="text-highlight" fill="currentColor"/>))}</div>
+                       <p className="text-primary/70 font-medium mb-12 leading-relaxed italic text-lg tracking-tight">"{review.text}"</p>
+                       <div className="pt-8 border-t border-stone-50 flex items-center justify-between"><div><h5 className="font-black text-primary text-xl tracking-tight leading-none mb-1">{review.name}</h5><span className="text-[10px] font-black text-highlight uppercase tracking-[0.3em] bg-stone-50 px-3 py-1 rounded-full">{review.service}</span></div></div>
+                    </motion.div>
+                 ))}
+              </div>
+           </div>
         </div>
       </section>
 
-      {/* Admin Dash */}
+      {/* Admin Panel */}
       <AnimatePresence>
         {isAdminOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-teal-950/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] shadow-3xl overflow-hidden relative p-10 md:p-12 text-left">
-              <button onClick={() => setIsAdminOpen(false)} className="absolute top-8 right-8 p-2 bg-teal-50 text-teal-900 rounded-full hover:bg-teal-100"><X size={20} /></button>
-              <div className="flex items-center gap-3 mb-10"><Settings className="text-primary" size={32} /><h3 className="text-3xl font-black text-teal-950 font-serif uppercase tracking-tight">Admin Portal</h3></div>
-              <div className="space-y-10">
-                <div className="space-y-4">
-                  <label className="block text-xs font-black text-teal-400 uppercase tracking-widest">Upload Homestay Pics</label>
-                  <label className="w-full h-40 border-4 border-dashed border-teal-50 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-teal-50 transition-all group">
-                    <Camera className="text-teal-200 group-hover:text-primary mb-2" size={40} />
-                    <span className="text-xs font-bold text-teal-900/40 uppercase tracking-widest">Click to Select Photos</span>
-                    <input type="file" className="hidden" accept="image/*" onChange={handleAdminUpload} />
-                  </label>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-primary/95 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95, y: 30 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[4rem] shadow-3xl overflow-hidden relative p-10 md:p-20 text-left">
+              <button onClick={()=>setIsAdminOpen(false)} className="absolute top-10 right-10 p-3 bg-stone-50 text-primary rounded-full hover:bg-stone-100"><X size={24}/></button>
+              <div className="flex items-center gap-6 mb-16"><div className="p-5 bg-stone-50 rounded-[2rem] text-primary shadow-inner"><Settings size={40}/></div><div className="space-y-1 text-left"><h3 className="text-4xl font-black text-primary font-title uppercase tracking-tight leading-none">Lodge Admin</h3><p className="text-primary/30 font-black text-[10px] uppercase tracking-[0.5em]">Inventory & Media</p></div></div>
+              
+              {!isAuthorized ? (
+                <form onSubmit={handleAdminLogin} className="space-y-8 animate-in fade-in duration-500">
+                  <div className="flex flex-col items-center gap-6">
+                    <div className="p-8 bg-stone-50 rounded-full text-primary/10 border-2 border-stone-100 shadow-inner"><Lock size={64}/></div>
+                    <div className="text-center space-y-2"><h4 className="text-2xl font-black text-primary uppercase">Restricted Access</h4><p className="text-primary/40 text-xs font-bold uppercase tracking-widest px-10 leading-relaxed">Please enter your secure PIN.</p></div>
+                  </div>
+                  <div className="space-y-4">
+                    <label className="block text-[11px] font-black text-primary/30 uppercase tracking-[0.5em] ml-2 text-left">Lodge PIN</label>
+                    <input type="password" value={adminPin} onChange={e=>setAdminPin(e.target.value)} placeholder="ENTER PIN" className="w-full p-8 bg-stone-50 rounded-[3rem] border-0 outline-none font-black text-center text-4xl tracking-[0.5em] text-primary shadow-inner" />
+                  </div>
+                  <motion.button type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full py-6 bg-primary text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.4em] shadow-2xl">Verify Authorization</motion.button>
+                </form>
+              ) : (
+                <div className="space-y-14 animate-in zoom-in duration-500 text-left">
+                  <div className="space-y-6 text-left">
+                    <label className="block text-[11px] font-black text-primary/30 uppercase tracking-[0.5em] ml-2 text-left">Upload Visuals</label>
+                    <label className="w-full h-56 border-4 border-dashed border-stone-100 rounded-[3rem] flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all bg-stone-50/20"><Camera className="text-primary/20 mb-4" size={48} /><span className="text-[10px] font-black text-primary/40 uppercase tracking-[0.5em]">Click to Select High-Res Photos</span><input type="file" className="hidden" accept="image/*" onChange={handleAdminUpload} /></label>
+                  </div>
+                  <div className="grid grid-cols-4 gap-6 max-h-80 overflow-y-auto pr-4">{adminPics.map((url, i)=>(<img key={i} src={url} className="w-full h-24 object-cover rounded-[2rem] shadow-xl border-4 border-white" alt="Admin View"/>))}</div>
                 </div>
-                <div className="grid grid-cols-4 gap-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                  {adminPics.map((url, i) => <img key={i} src={url} className="w-full h-20 object-cover rounded-2xl shadow-sm border border-teal-50" alt="Admin Upload" />)}
-                  {adminPics.length === 0 && <div className="col-span-4 py-8 text-center text-teal-900/20 text-[10px] font-black uppercase tracking-[0.3em]">No custom gallery photos yet</div>}
-                </div>
-              </div>
+              )}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Payment Overlay */}
+      {/* Booking Flow: WhatsApp & Payment */}
       <AnimatePresence>
         {paymentStep !== 'none' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-teal-950/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] shadow-3xl overflow-hidden relative p-10 md:p-12 text-center">
-              <button onClick={() => setPaymentStep('none')} className="absolute top-8 right-8 p-2 bg-teal-50 text-teal-900 rounded-full hover:bg-teal-100"><X size={20} /></button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-primary/95 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95, y: 30 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-xl rounded-[4rem] shadow-3xl overflow-hidden relative p-10 md:p-20 text-center">
+              <button onClick={()=>setPaymentStep('none')} className="absolute top-10 right-10 p-3 bg-stone-50 text-primary rounded-full hover:bg-stone-100"><X size={24}/></button>
+              
+              {/* DIRECT SCANNING STEP */}
               {paymentStep === 'scanning' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
                   <div className="flex flex-col items-center">
                     <QrCode size={32} className="text-primary mb-4" />
-                    <h3 className="text-3xl font-black text-teal-950 font-serif uppercase tracking-tight leading-none">Confirm Booking</h3>
-                    <p className="text-teal-900/40 font-medium text-xs mt-3 uppercase tracking-widest text-center px-10">Review your selected services and scan to pay</p>
+                    <h3 className="text-3xl font-black text-teal-950 font-title uppercase tracking-tight leading-none">Finalize Payment</h3>
+                    <p className="text-primary/30 font-black text-[10px] uppercase tracking-[0.5em] mt-3 tracking-widest text-center px-10">Review and scan to complete booking</p>
                   </div>
 
                   {/* Detailed Service Breakdown */}
-                  <div className="bg-teal-50/50 rounded-[2rem] p-6 text-left space-y-4 border border-teal-100">
-                    <h4 className="text-[10px] font-black text-teal-900/40 uppercase tracking-widest border-b border-teal-100 pb-2">Trip Summary</h4>
+                  <div className="bg-stone-50/50 rounded-[2rem] p-6 text-left space-y-4 border border-stone-100 shadow-inner">
+                    <h4 className="text-[10px] font-black text-primary/30 uppercase tracking-widest border-b border-stone-100 pb-2">Your Itinerary</h4>
                     <div className="space-y-3">
                       {roomNights > 0 && (
                         <div className="flex justify-between items-start">
-                          <div className="flex gap-2">
-                            <Home size={14} className="text-primary mt-0.5" />
+                          <div className="flex gap-3">
+                            <div className="p-2 bg-white rounded-xl text-primary shadow-sm"><Home size={12} /></div>
                             <div>
-                              <p className="text-sm font-black text-teal-950">Luxury Stay</p>
-                              <p className="text-[10px] text-teal-900/40">{roomNights} Nights • {roomBooking.guests} Guests • {roomBooking.roomType}</p>
+                              <p className="text-xs font-black text-primary uppercase leading-none mb-1">Luxury Stay</p>
+                              <p className="text-[9px] text-primary/40 font-bold">{roomNights} Nights • Floor: {roomBooking.floor} • {roomBooking.roomType}</p>
                             </div>
                           </div>
                           <span className="text-sm font-bold">₹{(roomBooking.roomType === 'AC' ? 3500 : 3000) * roomNights}</span>
                         </div>
                       )}
-                      
                       {carBooking.active && (
                         <div className="flex justify-between items-start">
-                          <div className="flex gap-2">
-                            <Car size={14} className="text-primary mt-0.5" />
+                          <div className="flex gap-3">
+                            <div className="p-2 bg-white rounded-xl text-primary shadow-sm"><Car size={12} /></div>
                             <div>
-                              <p className="text-sm font-black text-teal-950">Rental Car</p>
-                              <p className="text-[10px] text-teal-900/40">{carBooking.model.toUpperCase()} • {carNights} Days</p>
+                              <p className="text-xs font-black text-primary uppercase leading-none mb-1">Adventure Fleet</p>
+                              <p className="text-[9px] text-primary/40 font-bold">{carBooking.model.toUpperCase()}</p>
                             </div>
                           </div>
                           <span className="text-sm font-bold">₹{(CAR_MODELS.find(m => m.id === carBooking.model)?.price || 0) * carNights}</span>
                         </div>
                       )}
-
-                      {boatingBooking.active && (
-                        <div className="flex justify-between items-start">
-                          <div className="flex gap-2">
-                            <Waves size={14} className="text-primary mt-0.5" />
-                            <div>
-                              <p className="text-sm font-black text-teal-950">Boating Trip</p>
-                              <p className="text-[10px] text-teal-900/40">{boatingBooking.duration} Hr • {boatingBooking.timeSlot}</p>
-                            </div>
-                          </div>
-                          <span className="text-sm font-bold">₹{boatingBooking.people * 500 * (boatingBooking.duration === '1.5' ? 1.5 : 1)}</span>
-                        </div>
-                      )}
-
-                      {Object.keys(foodOrder).length > 0 && (
-                        <div className="flex justify-between items-start">
-                          <div className="flex gap-2">
-                            <UtensilsCrossed size={14} className="text-primary mt-0.5" />
-                            <div>
-                              <p className="text-sm font-black text-teal-950">Coastal Dining</p>
-                              <p className="text-[10px] text-teal-900/40">{Object.values(foodOrder).reduce((a, b) => a + b, 0)} Items Selected</p>
-                            </div>
-                          </div>
-                          <span className="text-sm font-bold">₹{Object.entries(foodOrder).reduce((acc, [id, qty]) => acc + (FOOD_MENU.find(m => m.id === id)?.price || 0) * qty, 0)}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                   
-                  <div className="flex flex-col items-center gap-6">
-                    <div className="bg-teal-50 p-4 rounded-[2.5rem] inline-block shadow-inner">
-                      <QRCodeSVG value={`upi://pay?pa=mahalakshmi@upi&am=${totalCost}&cu=INR`} size={140} />
+                  <div className="flex flex-col items-center gap-8">
+                    <div className="bg-white p-6 rounded-[3rem] inline-block shadow-2xl border-4 border-stone-50 scale-110">
+                      <QRCodeSVG value={`upi://pay?pa=mahalakshmi@upi&am=${totalCost}&cu=INR`} size={160} />
                     </div>
 
-                    <div className="w-full flex justify-between items-center text-lg font-black p-5 bg-primary text-white rounded-2xl shadow-xl">
-                      <span className="text-teal-200 text-sm uppercase tracking-widest">Total to Pay</span>
-                      <span>₹{totalCost}</span>
+                    <div className="w-full flex justify-between items-center p-6 bg-primary text-white rounded-2xl shadow-xl">
+                      <span className="text-white/40 text-[10px] font-black uppercase tracking-widest">Total to Pay</span>
+                      <span className="text-3xl font-black">₹{totalCost}</span>
                     </div>
 
-                    <button onClick={handleSimulatePayment} className="w-full py-5 bg-accent text-primary rounded-2xl font-black text-lg shadow-xl shadow-accent/20">Verify & Confirm Paid</button>
+                    <motion.button onClick={handleSimulatePayment} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full py-6 bg-highlight text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.5em] shadow-2xl shadow-orange-900/30">Verify & Lock Booking</motion.button>
                   </div>
                 </div>
               )}
-              {paymentStep === 'processing' && <div className="py-20 flex flex-col items-center space-y-6"><Loader2 className="w-12 h-12 text-primary animate-spin" /><h3 className="text-2xl font-black text-teal-950 font-serif">Verifying...</h3></div>}
+
+              {paymentStep === 'processing' && <div className="py-32 flex flex-col items-center space-y-8"><Loader2 className="w-16 h-16 text-primary animate-spin" /><h3 className="text-3xl font-black text-primary font-title uppercase tracking-tight">Verifying Ledger...</h3></div>}
+              
               {paymentStep === 'success' && (
-                <div className="space-y-8 animate-in zoom-in duration-500 text-left">
-                  <div className="flex flex-col items-center text-center"><div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center mb-6 shadow-2xl shadow-emerald-200"><CheckCircle2 size={40} /></div><h3 className="text-3xl font-black text-teal-950 font-serif">Trip Finalized!</h3><p className="text-teal-900/40 font-medium text-xs">Details sent to mahalakshmihost@gmail.com</p></div>
-                  <div className="bg-white border-2 border-teal-50 rounded-[2.5rem] p-8 space-y-4 shadow-sm relative overflow-hidden">
-                    <div className="flex justify-between items-start border-b border-teal-50 pb-4"><div><p className="text-[8px] font-black text-teal-400 uppercase tracking-widest mb-1 text-left">Order No.</p><p className="font-black text-teal-950 text-sm">{orderNumber}</p></div><div className="text-right"><p className="text-[8px] font-black text-teal-400 uppercase tracking-widest mb-1">Status</p><p className="font-black text-emerald-500 text-sm uppercase">Paid</p></div></div>
-                    <div className="space-y-2 py-4">
-                      {roomNights > 0 && <div className="flex justify-between text-xs text-teal-950/70 font-medium"><span>Luxury Stay</span><span className="font-black">₹{(roomBooking.roomType === 'AC' ? 3500 : 3000) * roomNights}</span></div>}
-                      {carBooking.active && <div className="flex justify-between text-xs text-teal-950/70 font-medium"><span>Rental Car</span><span className="font-black">₹{(CAR_MODELS.find(m => m.id === carBooking.model)?.price || 0) * carNights}</span></div>}
-                      {boatingBooking.active && <div className="flex justify-between text-xs text-teal-950/70 font-medium"><span>Boating Trip</span><span className="font-black">₹{boatingBooking.people * 500 * (boatingBooking.duration === '1.5' ? 1.5 : 1)}</span></div>}
-                    </div>
-                    <div className="bg-teal-950 p-5 rounded-2xl flex justify-between items-center text-white"><span className="font-bold text-xs uppercase tracking-widest text-teal-400">Total Paid</span><span className="text-2xl font-black text-accent">₹{totalCost}</span></div>
+                <div className="space-y-12 animate-in zoom-in duration-500 text-left">
+                  <div className="flex flex-col items-center text-center"><div className="w-24 h-24 bg-emerald-500 text-white rounded-full flex items-center justify-center mb-8 shadow-2xl"><CheckCircle2 size={48} /></div><h3 className="text-4xl font-black text-primary font-title uppercase tracking-tight leading-none">Experience Locked!</h3><p className="text-primary/40 font-bold text-[11px] uppercase tracking-widest mt-6 text-center leading-relaxed">Itinerary dispatched to lodge records and <br />guest WhatsApp confirmation underway.</p></div>
+                  <div className="bg-white border-4 border-stone-50 rounded-[4rem] p-10 space-y-6 shadow-sm relative overflow-hidden">
+                    <div className="flex justify-between items-start border-b border-stone-100 pb-8"><div className="text-left"><p className="text-[10px] font-black text-primary/30 uppercase tracking-[0.4em] mb-2">Order Ledger</p><p className="font-black text-primary text-xl tracking-tighter">{orderNumber}</p></div><div className="text-right"><p className="text-[10px] font-black text-primary/30 uppercase tracking-[0.4em] mb-2">Status</p><p className="font-black text-emerald-500 text-xl uppercase tracking-widest italic">Settled</p></div></div>
+                    <div className="bg-primary p-8 rounded-[2.5rem] flex justify-between items-center text-white"><span className="font-black text-[10px] uppercase tracking-[0.5em] text-white/40">Total Paid</span><span className="text-4xl font-black text-highlight tracking-tighter">₹{totalCost}</span></div>
                   </div>
-                  <button onClick={() => setPaymentStep('none')} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-teal-500/20 transition-all">Close</button>
+                  <button onClick={()=>setPaymentStep('none')} className="w-full py-6 bg-primary text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.5em] shadow-2xl">Return to Lodge</button>
                 </div>
               )}
             </motion.div>
@@ -667,38 +592,39 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {/* Footer */}
-      <footer id="contact" className="py-32 bg-teal-950 text-white">
+      <footer id="contact" className="py-40 bg-primary text-white">
         <div className="max-w-7xl mx-auto px-6 text-left">
-          <div className="grid md:grid-cols-3 gap-20">
-            <div className="space-y-8">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center shadow-lg shadow-accent/10"><Waves className="text-primary w-6 h-6" /></div>
-                <span className="text-3xl font-black font-serif tracking-tighter uppercase">Maha Coastal</span>
+          <div className="grid md:grid-cols-3 gap-24">
+            <div className="space-y-10">
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-14 h-14 bg-highlight rounded-[2rem] flex items-center justify-center shadow-2xl"><Waves className="text-primary w-7 h-7" /></div>
+                <span className="text-4xl font-black font-title tracking-tighter uppercase leading-none text-white">Mahalakshmi <br /><span className="text-highlight italic font-serif text-2xl lowercase normal-case tracking-normal">Coastal</span></span>
               </div>
-              <p className="text-teal-100/40 font-medium leading-relaxed">Redefining coastal hospitality through traditional values and modern luxury.</p>
-              <div className="flex flex-col gap-4">
-                <a href="mailto:mahalakshmihost@gmail.com" className="p-3 bg-white/5 rounded-2xl text-accent hover:bg-accent hover:text-teal-950 transition-all flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest"><Mail size={14} /> mahalakshmihost@gmail.com</a>
+              <p className="text-white/30 font-medium leading-relaxed italic text-lg pr-10 text-left">"Redefining coastal hospitality through traditional values and modern luxury."</p>
+              <div className="flex flex-col gap-4 items-start">
+                <a href="mailto:mahalakshmihost@gmail.com" className="p-5 bg-white/5 rounded-[2rem] text-highlight hover:bg-highlight hover:text-white transition-all flex items-center gap-4 font-black text-[11px] uppercase tracking-widest border border-white/5"><Mail size={20} /> mahalakshmihost@gmail.com</a>
               </div>
             </div>
-            <div className="space-y-10">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-accent">Contact Details</h4>
-              <div className="space-y-6">
-                <div className="flex items-center gap-5">
-                  <div className="p-3 bg-white/5 rounded-2xl border border-white/5"><Phone className="text-accent" size={20} /></div>
-                  <div><p className="text-[8px] uppercase font-black text-teal-500 tracking-widest mb-1">Stay Inquiry</p><p className="font-bold text-lg">+91 8431232860</p></div>
+            <div className="space-y-12 pt-4">
+              <h4 className="text-[11px] font-black uppercase tracking-[0.6em] text-highlight border-l-4 border-highlight pl-4 text-left">Connection Lines</h4>
+              <div className="space-y-8">
+                <div className="flex items-center gap-6 group text-left">
+                  <div className="p-4 bg-white/5 rounded-3xl border border-white/10 transition-all"><Phone className="text-highlight" size={24} /></div>
+                  <div><p className="text-[10px] uppercase font-black text-white/20 tracking-[0.3em] mb-1">Stay Inquiry</p><p className="font-black text-2xl tracking-tighter text-white">+91 8431232860</p></div>
                 </div>
-                <div className="flex items-center gap-5">
-                  <div className="p-3 bg-white/5 rounded-2xl border border-white/5"><Phone className="text-accent" size={20} /></div>
-                  <div><p className="text-[8px] uppercase font-black text-teal-500 tracking-widest mb-1">General Info</p><p className="font-bold text-lg">+91 8105934576</p></div>
+                <div className="flex items-center gap-6 group text-left">
+                  <div className="p-4 bg-white/5 rounded-3xl border border-white/10 transition-all"><Phone className="text-highlight" size={24} /></div>
+                  <div><p className="text-[10px] uppercase font-black text-white/20 tracking-[0.3em] mb-1">General Info</p><p className="font-black text-2xl tracking-tighter text-white">+91 8105934576</p></div>
                 </div>
               </div>
             </div>
-            <div className="space-y-10">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-accent text-left">Location</h4>
-              <p className="text-teal-100/40 font-serif italic text-lg leading-relaxed text-left">"Find us nestled between the serene backwaters and the roaring Arabian Sea."</p>
-              <a href="https://maps.app.goo.gl/wzTkRPYoYqFgVUkw6" target="_blank" className="inline-flex items-center gap-3 text-accent font-black uppercase text-[10px] tracking-widest hover:translate-x-2 transition-all"><MapPin size={16} /> Open in Google Maps <ArrowRight size={14} /></a>
+            <div className="space-y-12 pt-4 text-left">
+              <h4 className="text-[11px] font-black uppercase tracking-[0.6em] text-highlight border-l-4 border-highlight pl-4">Lodge Location</h4>
+              <p className="text-white/40 font-serif italic text-xl leading-relaxed">"Find us nestled between the serene backwaters and the roaring Arabian Sea."</p>
+              <a href="https://maps.app.goo.gl/wzTkRPYoYqFgVUkw6" target="_blank" className="inline-flex items-center gap-5 text-highlight font-black uppercase text-[11px] tracking-widest hover:translate-x-3 transition-all p-6 bg-white/5 rounded-[2.5rem] border border-white/10 group"><MapPin size={24} /> Find On Map <ArrowRight size={18} /></a>
             </div>
           </div>
+          <div className="mt-40 pt-10 border-t border-white/5 flex justify-between items-center text-white/20"><p className="text-[9px] font-black uppercase tracking-[0.6em]">© 2026 Mahalakshmi Coastal Lodge. Authentic wilderness experience.</p></div>
         </div>
       </footer>
     </div>

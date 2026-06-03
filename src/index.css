@@ -1,29 +1,35 @@
 @import "tailwindcss";
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  font-family: 'Plus Jakarta Sans', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 body {
-  @apply bg-[#f0f9fa] text-[#1e293b];
+  @apply bg-[#fdfaf5] text-[#2d2a26]; /* Warm parchment background */
   overflow-x: hidden;
 }
 
 @theme {
-  --color-primary: #0d9488; /* Deep Teal */
-  --color-secondary: #f43f5e; /* Sunset Coral */
-  --color-accent: #fcd34d; /* Sandy Gold */
+  --color-primary: #1b4332; /* Deep Forest Green */
+  --color-secondary: #bc6c25; /* Earthy Wood Brown */
+  --color-accent: #dda15e; /* Warm Sand/Sunset */
+  --color-highlight: #f4a261; /* Vibrant Sunset Orange */
   
   --font-serif: 'Playfair Display', serif;
-  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-sans: 'Montserrat', sans-serif; /* Switched to Montserrat for a more rugged look */
 }
 
-h1, h2, h3, .font-serif {
-  font-family: var(--font-serif);
+h1, h2, h3, .font-title {
+  font-family: var(--font-sans);
+  @apply tracking-tight font-black uppercase;
 }
 
 .perspective-1000 {
   perspective: 1000px;
+}
+
+.jungle-card {
+  @apply bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden hover:shadow-xl transition-all duration-500;
 }
