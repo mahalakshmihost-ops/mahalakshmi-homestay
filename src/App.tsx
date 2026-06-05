@@ -334,9 +334,13 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* Booking Section */}
-      <section id="booking" className="py-32 px-4 sm:px-6 bg-[#fdfaf5]">
-        <div className="max-w-7xl mx-auto">
+      {/* Booking Section - Nature Background */}
+      <section id="booking" className="py-32 px-4 sm:px-6 relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img src={carBg} className="w-full h-full object-cover" alt="Background" />
+          <div className="absolute inset-0 bg-primary/80 backdrop-blur-sm"></div>
+        </div>
+        <div className="max-w-7xl mx-auto relative z-10">
           <div className="bg-white rounded-[3rem] sm:rounded-[5rem] shadow-3xl border border-stone-100 overflow-hidden flex flex-col lg:flex-row">
             <div className="lg:w-[45%] p-10 md:p-20 bg-primary text-white space-y-12 relative overflow-hidden text-left">
               <h2 className="text-4xl sm:text-5xl font-black font-title uppercase tracking-tight">The Wilderness Experience</h2>
