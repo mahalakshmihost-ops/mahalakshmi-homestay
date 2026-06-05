@@ -367,8 +367,8 @@ const App: React.FC = () => {
                 <h3 className="text-5xl font-black text-primary font-title uppercase leading-none">Book Your Escape</h3>
               </div>
               <div className="grid md:grid-cols-2 gap-10">
-                <div className="space-y-3"><label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em]">Arrival</label><input type="date" value={roomBooking.checkIn} onChange={e=>setRoomBooking(p=>({...p, checkIn: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
-                <div className="space-y-3"><label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em]">Departure</label><input type="date" value={roomBooking.checkOut} onChange={e=>setRoomBooking(p=>({...p, checkOut: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
+                <div className="space-y-3"><label className="text-[11px] font-black text-primary uppercase tracking-[0.4em]">Arrival</label><input type="date" value={roomBooking.checkIn} onChange={e=>setRoomBooking(p=>({...p, checkIn: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
+                <div className="space-y-3"><label className="text-[11px] font-black text-primary uppercase tracking-[0.4em]">Departure</label><input type="date" value={roomBooking.checkOut} onChange={e=>setRoomBooking(p=>({...p, checkOut: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-2 border-transparent focus:border-primary outline-none font-black text-primary transition-all" /></div>
               </div>
               
               {roomNights === 0 ? (
@@ -378,13 +378,13 @@ const App: React.FC = () => {
               ) : null}
               <div className="grid md:grid-cols-3 gap-8">
                 <div className="space-y-3 text-left">
-                  <label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em] ml-2">Explorer Count</label>
+                  <label className="text-[11px] font-black text-primary uppercase tracking-[0.4em] ml-2">Explorer Count</label>
                   <select value={roomBooking.guests} onChange={e=>setRoomBooking(p=>({...p, guests: parseInt(e.target.value)}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-0 outline-none font-black text-primary appearance-none cursor-pointer shadow-inner">
                     {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} Guests</option>)}
                   </select>
                 </div>
                 <div className="space-y-3 text-left">
-                  <label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em] ml-2">Select Floor</label>
+                  <label className="text-[11px] font-black text-primary uppercase tracking-[0.4em] ml-2">Select Floor</label>
                   <select value={roomBooking.floor} onChange={e=>setRoomBooking(p=>({...p, floor: e.target.value}))} className="w-full p-6 bg-stone-50 rounded-[2rem] border-0 outline-none font-black text-primary appearance-none cursor-pointer shadow-inner">
                     <option value="1st">1st Floor</option>
                     <option value="2nd">2nd Floor</option>
@@ -392,9 +392,9 @@ const App: React.FC = () => {
                   </select>
                 </div>
                 <div className="space-y-3 text-left">
-                  <label className="text-[11px] font-black text-primary/30 uppercase tracking-[0.4em] ml-2">Stay Comfort</label>
+                  <label className="text-[11px] font-black text-primary uppercase tracking-[0.4em] ml-2">Stay Comfort</label>
                   <div className="flex gap-3 p-2 bg-stone-100 rounded-[2rem]">
-                    {['Non-AC', 'AC'].map(t => <button key={t} onClick={()=>setRoomBooking(p=>({...p, roomType: t}))} className={`flex-1 py-4 rounded-2xl font-black transition-all uppercase text-[10px] ${roomBooking.roomType === t ? 'bg-white shadow-xl text-primary scale-105' : 'text-primary/30'}`}>{t}</button>)}
+                    {['Non-AC', 'AC'].map(t => <button key={t} onClick={()=>setRoomBooking(p=>({...p, roomType: t}))} className={`flex-1 py-4 rounded-2xl font-black transition-all uppercase text-[10px] ${roomBooking.roomType === t ? 'bg-white shadow-xl text-primary scale-105' : 'text-primary/60'}`}>{t}</button>)}
                   </div>
                 </div>
               </div>
